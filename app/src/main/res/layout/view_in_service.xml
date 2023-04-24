@@ -10,9 +10,9 @@
         android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:id="@+id/bt"
-        android:src="@drawable/img_volvoback_logo"
+        android:src="@drawable/img_volvo_logo"
         android:background="@android:color/transparent"
-        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
         android:layout_marginTop="12dp" />
 
 </RelativeLayout>
