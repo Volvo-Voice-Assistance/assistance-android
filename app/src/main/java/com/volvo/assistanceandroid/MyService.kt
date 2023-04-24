@@ -7,29 +7,36 @@ import android.app.Service
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.os.*
+import android.os.Bundle
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.*
 import android.widget.ImageButton
 import androidx.core.app.NotificationCompat
+import java.util.*
 
 
 enum class AppState {
     STOPPED, WAKE, STT
 }
 
-class MyService : Service() {
+class MyService : Service(), TextToSpeech.OnInitListener {
     private val notificationId = 1234
     private val channelId = "VoiceAssistanceServiceChannel"
-    private var currentState: AppState? = null
+    private var currentState: AppState = AppState.STOPPED
     lateinit var bt: ImageButton
     private lateinit var wm: WindowManager
     private lateinit var mView: View
-    private lateinit var speechRecognizer: SpeechRecognizer // SpeechRecognizer 객체를 선언합니다.
-    private lateinit var recognizerIntent: Intent // RecognizerIntent 객체를 선언합니다.
+    private lateinit var speechRecognizer: SpeechRecognizer // SpeechRecognizer 객체를 선언
+    private lateinit var tts: TextToSpeech
+    private lateinit var recognizerIntent : Intent
+
 
     override fun onBind(intent: Intent): IBinder? {
         return null
@@ -39,15 +46,14 @@ class MyService : Service() {
         super.onCreate()
         initUi()
         initSTT()
+        initTTS()
         createNotification()
-        currentState = AppState.STOPPED
         changeState()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("VolvoTest", "서비스가 시작되었습니다.")
-        speechRecognizer.startListening(recognizerIntent)
-        return START_STICKY // 서비스가 강제 종료되면 재시작하도록 설정합니다.
+        return START_STICKY // 서비스가 강제 종료되면 재시작하도록 설정
     }
 
     private fun initUi() {
@@ -107,7 +113,7 @@ class MyService : Service() {
                 NotificationManager.IMPORTANCE_DEFAULT
             )
         )
-        notificationManager.notify(notificationId, builder.build()) // id : 정의해야하는 각 알림의 고유한 int값
+        notificationManager.notify(notificationId, builder.build())
         val notification = builder.build()
         startForeground(notificationId, notification)
     }
@@ -116,10 +122,7 @@ class MyService : Service() {
     private fun initSTT() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-        recognizerIntent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-        )
+        recognizerIntent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
@@ -128,19 +131,21 @@ class MyService : Service() {
             }
 
             override fun onBeginningOfSpeech() {
-                Log.d("SpeechToTextService", "음성 인식 시작")
+//                audioManager.abandonAudioFocusRequest(audioFocusRequest)
+
             }
 
             override fun onRmsChanged(rmsdB: Float) {
-                // 음성의 크기가 변할 때 호출됩니다. 필요에 따라 사용하세요.
+                // 음성의 크기가 변할 때 호출
             }
 
             override fun onBufferReceived(buffer: ByteArray?) {
-                // 녹음된 음성 데이터의 버퍼가 준비되면 호출됩니다. 필요에 따라 사용하세요.
+                // 녹음된 음성 데이터의 버퍼가 준비되면 호출
             }
 
             override fun onEndOfSpeech() {
                 Log.d("SpeechToTextService", "음성 인식 종료")
+//                audioManager.requestAudioFocus(audioFocusRequest)
             }
 
             override fun onError(error: Int) {
@@ -156,13 +161,16 @@ class MyService : Service() {
                         playback(0)
                         return
                     }
-                    SpeechRecognizer.ERROR_CLIENT -> return
+                    SpeechRecognizer.ERROR_CLIENT -> {
+                        return
+
+                    }
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> displayError("Recognition service is busy.")
                     SpeechRecognizer.ERROR_SERVER -> displayError("Server Error.")
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> displayError("No speech input.")
                     else -> displayError("Something wrong occurred.")
                 }
-                // 오류가 발생하면 다시 음성 인식을 시작합니다.
+                // 오류가 발생하면 다시 음성 인식을 시작
                 speechRecognizer.stopListening()
             }
 
@@ -173,31 +181,48 @@ class MyService : Service() {
                 if (matches != null && matches.isNotEmpty()) {
                     val text = matches[0] // 가장 정확도가 높은 결과를 가져옴
                     Log.d("SpeechToTextService", "음성 인식 결과: $text")
-                    // 음성 인식 결과를 사용하는 코드를 작성하세요. 예를 들어, 텍스트를 다른 앱에 전달하거나, 특정 명령어에 따라 작업을 수행하거나, 텍스트를 음성으로 변환하거나 등등...
+                    // 음성 인식 결과를 사용하는 코드를 작성.
                     if (text.contains("볼보")) {
                         currentState = AppState.STT
                         changeState()
+                        speakOut("네?")
                     } else if (currentState == AppState.STT) {
                         text.contains("라이트")
+                        speakOut("네 라이트를 켜드릴게요")
                         Log.d("SpeechToTextService", "라이트켜줌")
                         currentState = AppState.STOPPED
                         changeState()
                     }
                 }
-                // 음성 인식을 계속 수행하려면 다시 음성 인식을 시작합니다.
+                // 다시 음성 인식을 시작
                 playback(1000)
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
-                // 음성 인식 중간 결과를 받으면 호출됩니다. 필요에 따라 사용하세요.
+                // 음성 인식 중간 결과를 받으면 호출
             }
 
             override fun onEvent(eventType: Int, params: Bundle?) {
-                // 음성 인식 관련 이벤트가 발생하면 호출됩니다. 필요에 따라 사용하세요.
+                // 음성 인식 관련 이벤트가 발생하면 호출됩니다. 필요에 따라 사용
             }
         })
+
+        speechRecognizer.startListening(recognizerIntent)
+
     }
 
+    private fun initTTS() {
+        tts = TextToSpeech(this, this)
+
+    }
+
+    private fun speakOut(speakText: String) {
+        speechRecognizer.stopListening()
+        tts.setPitch(0.8.toFloat())
+        tts.setSpeechRate(1.0.toFloat())
+        tts.speak(speakText, TextToSpeech.QUEUE_FLUSH, null, "id1")
+
+    }
 
     // 일정 시간 후에 동작
     private fun playback(milliSeconds: Int) {
@@ -221,6 +246,21 @@ class MyService : Service() {
         speechRecognizer.destroy()
         if (::wm.isInitialized && ::mView.isInitialized) { // 변수가 초기화되었는지 확인
             wm.removeView(mView)
+        }
+        tts.stop()
+        tts.shutdown();
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            val result = tts.setLanguage(Locale.KOREA)
+            if (result == TextToSpeech.LANG_MISSING_DATA
+                || result == TextToSpeech.LANG_NOT_SUPPORTED
+            ) {
+                Log.e("TTS", "This Language is not supported")
+            }
+        } else {
+            Log.e("TTS", "Initilization Failed!")
         }
     }
 
