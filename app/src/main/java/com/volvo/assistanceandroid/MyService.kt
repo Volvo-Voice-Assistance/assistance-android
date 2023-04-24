@@ -18,18 +18,16 @@ import androidx.core.app.NotificationCompat
 
 
 enum class AppState {
-    STOPPED, STT
+    STOPPED, WAKE, STT
 }
 
 class MyService : Service() {
     private val notificationId = 1234
     private val channelId = "VoiceAssistanceServiceChannel"
     private var currentState: AppState? = null
-    lateinit var bt : ImageButton
+    lateinit var bt: ImageButton
     private lateinit var wm: WindowManager
     private lateinit var mView: View
-
-
     private lateinit var speechRecognizer: SpeechRecognizer // SpeechRecognizer 객체를 선언합니다.
     private lateinit var recognizerIntent: Intent // RecognizerIntent 객체를 선언합니다.
 
@@ -43,12 +41,12 @@ class MyService : Service() {
         initSTT()
         createNotification()
         currentState = AppState.STOPPED
+        changeState()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("VolvoTest", "서비스가 시작되었습니다.")
         speechRecognizer.startListening(recognizerIntent)
-        currentState = AppState.STT
         return START_STICKY // 서비스가 강제 종료되면 재시작하도록 설정합니다.
     }
 
@@ -72,7 +70,19 @@ class MyService : Service() {
     }
 
     private fun changeState() {
-        bt.setImageResource(R.drawable.img_volvoback_logo)
+        when (currentState) {
+            AppState.STT -> {
+                bt.setImageResource(R.drawable.img_volvoback_logo)
+                bt.visibility = View.VISIBLE
+            }
+            AppState.WAKE -> {
+                bt.setImageResource(R.drawable.img_volvoback_logo)
+                bt.visibility = View.VISIBLE
+            }
+            else -> {
+                bt.visibility = View.GONE
+            }
+        }
     }
 
 
@@ -141,7 +151,7 @@ class MyService : Service() {
                         "Network Error."
                     )
                     SpeechRecognizer.ERROR_NO_MATCH -> {
-                        playback(1000)
+                        playback(0)
                         return
                     }
                     SpeechRecognizer.ERROR_CLIENT -> return
@@ -162,13 +172,18 @@ class MyService : Service() {
                     val text = matches[0] // 가장 정확도가 높은 결과를 가져옴
                     Log.d("SpeechToTextService", "음성 인식 결과: $text")
                     // 음성 인식 결과를 사용하는 코드를 작성하세요. 예를 들어, 텍스트를 다른 앱에 전달하거나, 특정 명령어에 따라 작업을 수행하거나, 텍스트를 음성으로 변환하거나 등등...
-                    if (text.contains("볼보")){
+                    if (text.contains("볼보")) {
+                        currentState = AppState.STT
+                        changeState()
+                    } else if (currentState == AppState.STT) {
+                        text.contains("라이트")
+                        Log.d("SpeechToTextService", "라이트켜줌")
+                        currentState = AppState.STOPPED
                         changeState()
                     }
                 }
                 // 음성 인식을 계속 수행하려면 다시 음성 인식을 시작합니다.
-
-                playback(3000)
+                playback(1000)
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -184,15 +199,13 @@ class MyService : Service() {
 
     // 일정 시간 후에 동작
     private fun playback(milliSeconds: Int) {
-        //음성 인식 종료
         speechRecognizer.stopListening()
-        // wakeword 상태로 변경
-        currentState = AppState.STT
-        //다시 wakeword 시작
         Handler(Looper.getMainLooper()).postDelayed({
-            if (currentState == AppState.STT) {
-                speechRecognizer.startListening(recognizerIntent)
+            if (currentState != AppState.STOPPED) {
+                currentState = AppState.STT
+                changeState()
             }
+            speechRecognizer.startListening(recognizerIntent)
         }, milliSeconds.toLong())
     }
 
