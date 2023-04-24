@@ -4,9 +4,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.media.AudioManager
+import android.media.MediaRecorder
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -36,7 +39,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     private lateinit var speechRecognizer: SpeechRecognizer // SpeechRecognizer 객체를 선언
     private lateinit var tts: TextToSpeech
     private lateinit var recognizerIntent : Intent
-
+    private lateinit var audioManager: AudioManager
 
     override fun onBind(intent: Intent): IBinder? {
         return null
@@ -110,7 +113,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             NotificationChannel(
                 channelId,
                 "기본 채널",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_LOW
             )
         )
         notificationManager.notify(notificationId, builder.build())
@@ -119,14 +122,27 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     }
 
 
+
+
     private fun initSTT() {
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+
+
+
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-        recognizerIntent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
-        recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
+        recognizerIntent.apply {
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 100000L)
+        }
+
+
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
+                audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0)
                 Log.d("SpeechToTextService", "음성 인식 준비 완료")
             }
 
@@ -189,7 +205,6 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     } else if (currentState == AppState.STT) {
                         text.contains("라이트")
                         speakOut("네 라이트를 켜드릴게요")
-                        Log.d("SpeechToTextService", "라이트켜줌")
                         currentState = AppState.STOPPED
                         changeState()
                     }
