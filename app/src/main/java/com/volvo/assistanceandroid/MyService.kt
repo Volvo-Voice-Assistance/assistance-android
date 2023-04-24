@@ -1,6 +1,5 @@
 package com.volvo.assistanceandroid
 
-import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -8,24 +7,25 @@ import android.app.Service
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.os.Build
-import android.os.Bundle
-import android.os.IBinder
+import android.os.*
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import android.view.*
 import android.widget.ImageButton
-import android.widget.Toast
-import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 
+
+enum class AppState {
+    STOPPED, STT
+}
 
 class MyService : Service() {
     private val notificationId = 1234
     private val channelId = "VoiceAssistanceServiceChannel"
+    private var currentState: AppState? = null
+    lateinit var bt : ImageButton
     private lateinit var wm: WindowManager
     private lateinit var mView: View
 
@@ -42,12 +42,13 @@ class MyService : Service() {
         initUi()
         initSTT()
         createNotification()
+        currentState = AppState.STOPPED
     }
-
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("VolvoTest", "서비스가 시작되었습니다.")
         speechRecognizer.startListening(recognizerIntent)
+        currentState = AppState.STT
         return START_STICKY // 서비스가 강제 종료되면 재시작하도록 설정합니다.
     }
 
@@ -65,12 +66,13 @@ class MyService : Service() {
         params.gravity = Gravity.CENTER or Gravity.BOTTOM
         mView = inflate.inflate(R.layout.view_in_service, null) // mView 변수를 초기화
         mView.let {
-            val bt = it.findViewById<View>(R.id.bt) as ImageButton
-            bt.setOnClickListener {
-                bt.setImageResource(R.drawable.img_volvoback_logo)
-            }
+            bt = it.findViewById<View>(R.id.bt) as ImageButton
             wm.addView(it, params)
         }
+    }
+
+    private fun changeState() {
+        bt.setImageResource(R.drawable.img_volvoback_logo)
     }
 
 
@@ -101,7 +103,7 @@ class MyService : Service() {
     }
 
 
-    private fun initSTT(){
+    private fun initSTT() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         recognizerIntent.putExtra(
@@ -132,10 +134,26 @@ class MyService : Service() {
             }
 
             override fun onError(error: Int) {
-                Log.d("SpeechToTextService", "음성 인식 오류: $error")
+                when (error) {
+                    SpeechRecognizer.ERROR_AUDIO -> displayError("Error recording audio.")
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> displayError("Insufficient permissions.")
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_NETWORK -> displayError(
+                        "Network Error."
+                    )
+                    SpeechRecognizer.ERROR_NO_MATCH -> {
+                        playback(1000)
+                        return
+                    }
+                    SpeechRecognizer.ERROR_CLIENT -> return
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> displayError("Recognition service is busy.")
+                    SpeechRecognizer.ERROR_SERVER -> displayError("Server Error.")
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> displayError("No speech input.")
+                    else -> displayError("Something wrong occurred.")
+                }
                 // 오류가 발생하면 다시 음성 인식을 시작합니다.
-                speechRecognizer.startListening(recognizerIntent)
+                speechRecognizer.stopListening()
             }
+
 
             override fun onResults(results: Bundle?) {
                 // 음성 인식 결과를 받으면 호출, 결과는 문자열의 배열로 제공, 첫 번째 요소가 가장 정확도가 높은 결과
@@ -144,9 +162,13 @@ class MyService : Service() {
                     val text = matches[0] // 가장 정확도가 높은 결과를 가져옴
                     Log.d("SpeechToTextService", "음성 인식 결과: $text")
                     // 음성 인식 결과를 사용하는 코드를 작성하세요. 예를 들어, 텍스트를 다른 앱에 전달하거나, 특정 명령어에 따라 작업을 수행하거나, 텍스트를 음성으로 변환하거나 등등...
+                    if (text.contains("볼보")){
+                        changeState()
+                    }
                 }
                 // 음성 인식을 계속 수행하려면 다시 음성 인식을 시작합니다.
-                speechRecognizer.startListening(recognizerIntent)
+
+                playback(3000)
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -159,7 +181,24 @@ class MyService : Service() {
         })
     }
 
-    // 음성 인식 서비스의 상태를 확인하는 메소드
+
+    // 일정 시간 후에 동작
+    private fun playback(milliSeconds: Int) {
+        //음성 인식 종료
+        speechRecognizer.stopListening()
+        // wakeword 상태로 변경
+        currentState = AppState.STT
+        //다시 wakeword 시작
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (currentState == AppState.STT) {
+                speechRecognizer.startListening(recognizerIntent)
+            }
+        }, milliSeconds.toLong())
+    }
+
+    private fun displayError(message: String) {
+        Log.d("SpeechToTextService", message)
+    }
 
     override fun onDestroy() {
         super.onDestroy()
