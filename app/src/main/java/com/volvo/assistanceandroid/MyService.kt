@@ -151,6 +151,8 @@ class MyService : Service() {
                         "Network Error."
                     )
                     SpeechRecognizer.ERROR_NO_MATCH -> {
+                        currentState = AppState.STOPPED
+                        changeState()
                         playback(0)
                         return
                     }
