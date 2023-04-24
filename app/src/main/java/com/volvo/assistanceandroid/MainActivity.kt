@@ -1,6 +1,5 @@
 package com.volvo.assistanceandroid
 
-//ui용 import
 
 import android.annotation.TargetApi
 import android.app.Activity
@@ -13,24 +12,26 @@ import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import android.provider.Settings
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.databinding.DataBindingUtil
+import com.volvo.assistanceandroid.databinding.ActivityMainBinding
 
-
-//ui용 import
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityMainBinding
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-        setContentView(R.layout.activity_main)
 
-        val bt_start = findViewById<View>(R.id.bt_start) as Button
-        bt_start.setOnClickListener { checkPermission() }
+        binding = DataBindingUtil.setContentView(this, R.layout.activity_main)
 
-        val bt_stop = findViewById<View>(R.id.bt_stop) as Button
-        bt_stop.setOnClickListener { stopService(Intent(this@MainActivity, MyService::class.java)) }
-
+        binding.btStart.setOnClickListener { checkPermission() }
+        binding.btStop.setOnClickListener { stopService(Intent(this@MainActivity, MyService::class.java)) }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        binding.unbind()
+    }
 
     private val someActivityResultLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -45,17 +46,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    fun checkPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {   // 마시멜로우 이상일 경우
-            if (!Settings.canDrawOverlays(this)) {              // 체크
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName")
-                )
-                someActivityResultLauncher.launch(intent)
-            } else {
-                startService(Intent(this@MainActivity, MyService::class.java))
-            }
+    /**
+     * 현재 앱이 다른 앱 위에 그릴 수 있는 권한을 확인하고 요청하는 함수입니다.
+     **/
+    private fun checkPermission() {
+        if (!Settings.canDrawOverlays(this)) {              // 체크
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            someActivityResultLauncher.launch(intent)
         } else {
             startService(Intent(this@MainActivity, MyService::class.java))
         }
