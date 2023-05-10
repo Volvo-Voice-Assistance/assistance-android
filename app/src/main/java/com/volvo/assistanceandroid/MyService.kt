@@ -20,7 +20,6 @@ import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.*
 import android.widget.ImageButton
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import org.tensorflow.lite.support.label.Category
 import java.util.*
@@ -48,6 +47,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     private val listener = object : TextClassificationHelper.TextResultsListener {
 
         override fun onResult(results: List<Category>) {
+            // softmax 최고 확률 결과
             val maxCategory = results.maxByOrNull {
                 it.score
             }
