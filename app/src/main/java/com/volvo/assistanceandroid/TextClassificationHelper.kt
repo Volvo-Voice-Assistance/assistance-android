@@ -12,7 +12,7 @@ class TextClassificationHelper(
 ) {
 
     companion object {
-        const val MODELNAME = "model.tflite"
+        const val MODEL_NAME = "model.tflite"
     }
 
     private lateinit var bertClassifier: BertNLClassifier
@@ -35,7 +35,7 @@ class TextClassificationHelper(
 
         bertClassifier = BertNLClassifier.createFromFileAndOptions(
             context,
-            MODELNAME,
+            MODEL_NAME,
             options
         )
     }

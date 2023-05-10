@@ -20,7 +20,9 @@ import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.*
 import android.widget.ImageButton
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import org.tensorflow.lite.support.label.Category
 import java.util.*
 
 
@@ -29,6 +31,7 @@ enum class AppState {
 }
 
 class MyService : Service(), TextToSpeech.OnInitListener {
+
     private val notificationId = 1234
     private val channelId = "VoiceAssistanceServiceChannel"
     private var currentState: AppState = AppState.STOPPED
@@ -37,8 +40,23 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     private lateinit var mView: View
     private lateinit var speechRecognizer: SpeechRecognizer // SpeechRecognizer 객체를 선언
     private lateinit var tts: TextToSpeech
-    private lateinit var recognizerIntent : Intent
+    private lateinit var recognizerIntent: Intent
     private lateinit var audioManager: AudioManager
+    private lateinit var classifierHelper: TextClassificationHelper
+
+
+    private val listener = object : TextClassificationHelper.TextResultsListener {
+
+        override fun onResult(results: List<Category>) {
+            val maxCategory = results.maxByOrNull {
+                it.score
+            }
+        }
+
+        override fun onError(error: String) {
+
+        }
+    }
 
     override fun onBind(intent: Intent): IBinder? {
         return null
@@ -47,10 +65,17 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     override fun onCreate() {
         super.onCreate()
         initUi()
+        initClassifier()
         initSTT()
         initTTS()
         createNotification()
         changeState()
+    }
+
+    private fun initClassifier() {
+        classifierHelper = TextClassificationHelper(
+            context = this,
+            listener = listener)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -119,8 +144,6 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         val notification = builder.build()
         startForeground(notificationId, notification)
     }
-
-
 
 
     private fun initSTT() {

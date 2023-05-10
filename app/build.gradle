@@ -32,6 +32,9 @@ android {
     buildFeatures{
         dataBinding true
     }
+    androidResources {
+        noCompress 'tflite'
+    }
 }
 
 
