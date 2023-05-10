@@ -1,7 +1,7 @@
 package com.volvo.assistanceandroid
 
-enum class ActionClass(val label: Int) {
-
+enum class Action(val label: Int) {
+    NONE(-1),
     MACHINE_FRONT_WORKLIGHT_ON(0),
     MACHINE_FRONT_WORKLIGHT_OFF(1),
     MACHINE_BOOM_WORKLIGHT_ON(2),
@@ -25,6 +25,5 @@ enum class ActionClass(val label: Int) {
     MEDIA_MUSIC_ON(20),
     MEDIA_MUSIC_OFF(21),
     MEDIA_RADIO_ON(22),
-    MEDIA_RADIO_OFF(23)
-
+    MEDIA_RADIO_OFF(23),
 }

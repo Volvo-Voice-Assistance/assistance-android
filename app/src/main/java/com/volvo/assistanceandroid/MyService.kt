@@ -48,14 +48,26 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
         override fun onResult(results: List<Category>) {
             // softmax 최고 확률 결과
+            var action = Action.NONE
             val maxCategory = results.maxByOrNull {
                 it.score
             }
+            if (maxCategory != null && maxCategory.score >= 0.7) {
+                // 가장 높은 정확도가 70프로 아래라면 NONE으로 레이블링
+                action = Action.values()[maxCategory.label.toInt()]
+            }
+
+            //action 처리
+            processResult(action)
         }
 
         override fun onError(error: String) {
 
         }
+    }
+
+    private fun processResult(action: Action) {
+        action
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -75,7 +87,8 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     private fun initClassifier() {
         classifierHelper = TextClassificationHelper(
             context = this,
-            listener = listener)
+            listener = listener
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

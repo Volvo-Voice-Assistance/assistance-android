@@ -21,7 +21,6 @@ import com.volvo.assistanceandroid.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
-
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             permissions.entries.forEach { permission ->
