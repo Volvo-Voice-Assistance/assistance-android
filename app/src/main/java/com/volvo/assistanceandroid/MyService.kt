@@ -1,5 +1,8 @@
 package com.volvo.assistanceandroid
 
+import ai.picovoice.porcupine.Porcupine
+import ai.picovoice.porcupine.PorcupineException
+import ai.picovoice.porcupine.PorcupineManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -26,15 +29,21 @@ import java.util.*
 
 
 enum class AppState {
-    STOPPED, WAKE, STT
+    STOPPED,WAKEWORD,STT,SAYING
 }
 
-class MyService : Service(), TextToSpeech.OnInitListener {
 
+class MyService : Service(), TextToSpeech.OnInitListener {
+    companion object {
+        const val ACCESS_KEY = "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
+        const val KEYWORD_PATH = "volvo_en_android_v2_2_0.ppn"
+        const val CHANNEL_ID = "VoiceAssistanceServiceChannel"
+    }
+
+    private var porcupineManager: PorcupineManager? = null
     private val notificationId = 1234
-    private val channelId = "VoiceAssistanceServiceChannel"
     private var currentState: AppState = AppState.STOPPED
-    lateinit var bt: ImageButton
+    private lateinit var bt: ImageButton
     private lateinit var wm: WindowManager
     private lateinit var mView: View
     private lateinit var speechRecognizer: SpeechRecognizer // SpeechRecognizer 객체를 선언
@@ -43,9 +52,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     private lateinit var audioManager: AudioManager
     private lateinit var classifierHelper: TextClassificationHelper
 
-
-    private val listener = object : TextClassificationHelper.TextResultsListener {
-
+    private val classifierListener = object : TextClassificationHelper.TextResultsListener {
         override fun onResult(results: List<Category>) {
             // softmax 최고 확률 결과
             var action = Action.NONE
@@ -60,43 +67,54 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             //action 처리
             processResult(action)
         }
-
         override fun onError(error: String) {
 
         }
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        initView()
+        initWakeWordDetection()
+        initSTT()
+        initTTS()
+        //initClassifier()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        createNotification()
+        playback(0)
+        return START_STICKY // 서비스가 강제 종료되면 재시작하도록 설정
+    }
+
+    private fun initWakeWordDetection() {
+        try {
+            porcupineManager = PorcupineManager.Builder()
+                .setAccessKey(ACCESS_KEY)
+                //.setKeywordPath(KEYWORD_PATH)
+                .setKeyword(Porcupine.BuiltInKeyword.JARVIS)
+                .setSensitivity(0.9f)
+                .build(applicationContext) {
+                    Log.d("PORCUPINE", "Detection");
+                    speakOut("네?")
+                    currentState = AppState.STT
+                    changeState()
+                    porcupineManager?.stop();
+                    speechRecognizer.startListening(recognizerIntent)
+                }
+        } catch (e: PorcupineException) {
+            Log.e("PORCUPINE_SERVICE", e.toString())
+        }
+    }
+
+    /** TODO 텍스트 의도 분석 후 이후 작업 처라**/
     private fun processResult(action: Action) {
         action
     }
 
-    override fun onBind(intent: Intent): IBinder? {
-        return null
-    }
 
-    override fun onCreate() {
-        super.onCreate()
-        initUi()
-        initClassifier()
-        initSTT()
-        initTTS()
-        createNotification()
-        changeState()
-    }
-
-    private fun initClassifier() {
-        classifierHelper = TextClassificationHelper(
-            context = this,
-            listener = listener
-        )
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("VolvoTest", "서비스가 시작되었습니다.")
-        return START_STICKY // 서비스가 강제 종료되면 재시작하도록 설정
-    }
-
-    private fun initUi() {
+    /** 화면에 띄울 View를 초기화하는 함수 **/
+    private fun initView() {
         val inflate = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
         wm = getSystemService(WINDOW_SERVICE) as WindowManager // wm 변수를 초기화
         val params = WindowManager.LayoutParams(
@@ -113,17 +131,25 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             bt = it.findViewById<View>(R.id.bt) as ImageButton
             wm.addView(it, params)
         }
+        changeState()
+    }
+
+    /** 텍스트 분류를 위한 Helper Class 를 초기화 하는 함수 **/
+    private fun initClassifier() {
+        classifierHelper = TextClassificationHelper(
+            context = this,
+            listener = classifierListener
+        )
     }
 
     private fun changeState() {
         when (currentState) {
             AppState.STT -> {
-                bt.setImageResource(R.drawable.img_volvoback_logo)
+                bt.setImageResource(R.drawable.img_volvo_logo)
                 bt.visibility = View.VISIBLE
             }
-            AppState.WAKE -> {
+            AppState.SAYING -> {
                 bt.setImageResource(R.drawable.img_volvoback_logo)
-                bt.visibility = View.VISIBLE
             }
             else -> {
                 bt.visibility = View.GONE
@@ -132,8 +158,9 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     }
 
 
+    /** ForeGround Notification 을 생성하는 함수 **/
     private fun createNotification() {
-        val builder = NotificationCompat.Builder(this, channelId)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
         builder.setSmallIcon(R.mipmap.ic_launcher)
         builder.setContentTitle("VoiceAssistance Service")
         builder.setContentText("서비스 실행 중")
@@ -148,7 +175,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         val notificationManager = this.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(
             NotificationChannel(
-                channelId,
+                CHANNEL_ID,
                 "기본 채널",
                 NotificationManager.IMPORTANCE_LOW
             )
@@ -159,31 +186,24 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     }
 
 
+    /**  SPEECH-TO-TEXT를 초기화 하는 함수 TODO audioManager 삭제 고려 **/
     private fun initSTT() {
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-
-
-
-
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         recognizerIntent.apply {
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 100000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 10000);
         }
-
-
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
-                audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0)
                 Log.d("SpeechToTextService", "음성 인식 준비 완료")
             }
 
             override fun onBeginningOfSpeech() {
-//                audioManager.abandonAudioFocusRequest(audioFocusRequest)
-
+                currentState = AppState.SAYING
+                changeState()
             }
 
             override fun onRmsChanged(rmsdB: Float) {
@@ -196,33 +216,31 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
             override fun onEndOfSpeech() {
                 Log.d("SpeechToTextService", "음성 인식 종료")
-//                audioManager.requestAudioFocus(audioFocusRequest)
+                currentState = AppState.STT
+                changeState()
             }
 
             override fun onError(error: Int) {
                 when (error) {
                     SpeechRecognizer.ERROR_AUDIO -> displayError("Error recording audio.")
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> displayError("Insufficient permissions.")
-                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_NETWORK -> displayError(
-                        "Network Error."
-                    )
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_NETWORK -> displayError("Network Error.")
                     SpeechRecognizer.ERROR_NO_MATCH -> {
-                        currentState = AppState.STOPPED
-                        changeState()
-                        playback(0)
+                        // todo 다시 말해주세요 speech
+                        speakOut("다시 말해주세요")
+                        playback(1000)
                         return
                     }
                     SpeechRecognizer.ERROR_CLIENT -> {
                         return
-
                     }
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> displayError("Recognition service is busy.")
                     SpeechRecognizer.ERROR_SERVER -> displayError("Server Error.")
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> displayError("No speech input.")
                     else -> displayError("Something wrong occurred.")
                 }
-                // 오류가 발생하면 다시 음성 인식을 시작
-                speechRecognizer.stopListening()
+                speakOut("다시 말해주세요")
+                playback(1000)
             }
 
 
@@ -230,22 +248,14 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 // 음성 인식 결과를 받으면 호출, 결과는 문자열의 배열로 제공, 첫 번째 요소가 가장 정확도가 높은 결과
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (matches != null && matches.isNotEmpty()) {
-                    val text = matches[0] // 가장 정확도가 높은 결과를 가져옴
-                    Log.d("SpeechToTextService", "음성 인식 결과: $text")
-                    // 음성 인식 결과를 사용하는 코드를 작성.
-                    if (text.contains("볼보")) {
-                        currentState = AppState.STT
-                        changeState()
-                        speakOut("네?")
-                    } else if (currentState == AppState.STT) {
-                        text.contains("라이트")
-                        speakOut("네 라이트를 켜드릴게요")
-                        currentState = AppState.STOPPED
-                        changeState()
-                    }
+                    val speechText = matches[0] // 가장 정확도가 높은 결과를 가져옴
+                    Log.d("SpeechToTextService", "음성 인식 결과: $speechText")
+                    // 명령어 분석
+                    speakOut(speechText)
+                    //classifierHelper.classify(speechText)
                 }
-                // 다시 음성 인식을 시작
-                playback(1000)
+                // 다시 WakeWord 상태로
+                playback(2000)
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -256,62 +266,80 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 // 음성 인식 관련 이벤트가 발생하면 호출됩니다. 필요에 따라 사용
             }
         })
-
-        speechRecognizer.startListening(recognizerIntent)
-
     }
 
+
+    /** Text-To-Speech 를 초기화 하는 함수 **/
     private fun initTTS() {
         tts = TextToSpeech(this, this)
-
     }
 
+    /** 입력받은 Text를 Speech 하는 함수 **/
     private fun speakOut(speakText: String) {
         speechRecognizer.stopListening()
         tts.setPitch(0.8.toFloat())
         tts.setSpeechRate(1.0.toFloat())
         tts.speak(speakText, TextToSpeech.QUEUE_FLUSH, null, "id1")
-
     }
 
-    // 일정 시간 후에 동작
+    /** 일정 시간 후에 다시 WAKEWORD 상태로 전환하는 함수**/
     private fun playback(milliSeconds: Int) {
         speechRecognizer.stopListening()
+        currentState = AppState.WAKEWORD
         Handler(Looper.getMainLooper()).postDelayed({
-            if (currentState != AppState.STOPPED) {
-                currentState = AppState.STT
+            if (currentState == AppState.WAKEWORD) {
+                porcupineManager?.start()
                 changeState()
             }
-            speechRecognizer.startListening(recognizerIntent)
         }, milliSeconds.toLong())
     }
 
+    /** error 내용을 출력하는 함수 **/
     private fun displayError(message: String) {
-        Log.d("SpeechToTextService", message)
+        Log.e("SpeechToTextService", message)
+    }
+
+
+    /** service를 중단하는 함수 (리소스 해제) **/
+    private fun stopService() {
+        Log.d("EndService","endService")
+        if (porcupineManager != null) {
+            try {
+                porcupineManager?.stop()
+                porcupineManager?.delete()
+            } catch (e: PorcupineException) {
+                displayError("Failed to stop porcupine.")
+            }
+        }
+        if (::wm.isInitialized && ::mView.isInitialized) {
+            wm.removeView(mView)
+        }
+        speechRecognizer.stopListening()
+        speechRecognizer.destroy()
+        tts.stop()
+        tts.shutdown()
+        currentState = AppState.STOPPED
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        speechRecognizer.stopListening()
-        speechRecognizer.destroy()
-        if (::wm.isInitialized && ::mView.isInitialized) { // 변수가 초기화되었는지 확인
-            wm.removeView(mView)
-        }
-        tts.stop()
-        tts.shutdown();
+        stopService()
     }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             val result = tts.setLanguage(Locale.KOREA)
-            if (result == TextToSpeech.LANG_MISSING_DATA
-                || result == TextToSpeech.LANG_NOT_SUPPORTED
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED
             ) {
                 Log.e("TTS", "This Language is not supported")
             }
         } else {
             Log.e("TTS", "Initilization Failed!")
         }
+    }
+
+    override fun onBind(intent: Intent): IBinder? {
+        return null
     }
 
 }

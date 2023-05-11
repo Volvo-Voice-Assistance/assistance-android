@@ -73,9 +73,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    /**
-     * 현재 앱이 다른 앱 위에 그릴 수 있는 권한을 확인하고 요청하는 함수입니다.
-     **/
+    /** 현재 앱이 다른 앱 위에 그릴 수 있는 권한을 확인하고 요청하는 함수입니다. **/
     private fun checkPermission() {
         if (!Settings.canDrawOverlays(this)) {
             val intent = Intent(
