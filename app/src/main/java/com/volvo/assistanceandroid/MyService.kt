@@ -70,13 +70,18 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 it.score
             }
 
+            Log.d("SpeechToTextService", "${maxCategory?.label}")
+
             if (maxCategory != null && maxCategory.score >= 0.7) {
                 // 가장 높은 정확도가 70프로 아래라면 NONE으로 레이블링
                 action = Action.values()[maxCategory.label.toInt()]
             }
 
             //action 처리
-            processResult(action)
+            Log.d("SpeechToTextService", "$action")
+
+            speakOut(action.answer)
+            //processResult(action)
         }
 
         override fun onError(error: String) {
@@ -90,7 +95,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         initWakeWordDetection()
         initSTT()
         initTTS()
-        //initClassifier()
+        initClassifier()
 
     }
 
@@ -108,7 +113,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 .setSensitivities(SENSITIVITIES)
                 .build(applicationContext) {
                     Log.d("PORCUPINE", "Detection");
-                    speakOut("네?")
+                    speakOut("yes?")
                     currentState = AppState.STT
                     changeState()
                     porcupineManager?.stop();
@@ -121,7 +126,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     /** TODO 텍스트 의도 분석 후 이후 작업 처라**/
     private fun processResult(action: Action) {
-        action
+        speakOut(action.answer)
     }
 
 
@@ -204,7 +209,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         recognizerIntent.apply {
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
             putExtra(
                 RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
                 10000
@@ -244,8 +249,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     )
                     SpeechRecognizer.ERROR_NO_MATCH -> {
                         // todo 다시 말해주세요 speech
-                        speakOut("다시 말해주세요")
-                        playback(1000)
+                        playback(2000)
                         return
                     }
                     SpeechRecognizer.ERROR_CLIENT -> {
@@ -256,8 +260,8 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> displayError("No speech input.")
                     else -> displayError("Something wrong occurred.")
                 }
-                speakOut("다시 말해주세요")
-                playback(1000)
+                speakOut("error occured")
+                playback(2000)
             }
 
 
@@ -268,11 +272,10 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     val speechText = matches[0] // 가장 정확도가 높은 결과를 가져옴
                     Log.d("SpeechToTextService", "음성 인식 결과: $speechText")
                     // 명령어 분석
-                    speakOut(speechText)
-                    //classifierHelper.classify(speechText)
+                    classifierHelper.classify(speechText)
                 }
                 // 다시 WakeWord 상태로
-                playback(2000)
+                playback(3000)
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -293,7 +296,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     /** 입력받은 Text를 Speech 하는 함수 **/
     private fun speakOut(speakText: String) {
-        speechRecognizer.stopListening()
+        Log.d("speech", speakText)
         tts.setPitch(0.8.toFloat())
         tts.setSpeechRate(1.0.toFloat())
         tts.speak(speakText, TextToSpeech.QUEUE_FLUSH, null, "id1")
@@ -345,7 +348,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            val result = tts.setLanguage(Locale.KOREA)
+            val result = tts.setLanguage(Locale.ENGLISH)
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED
             ) {
                 Log.e("TTS", "This Language is not supported")
