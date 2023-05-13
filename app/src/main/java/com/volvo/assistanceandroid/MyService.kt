@@ -7,7 +7,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -29,15 +28,24 @@ import java.util.*
 
 
 enum class AppState {
-    STOPPED,WAKEWORD,STT,SAYING
+    STOPPED, WAKEWORD, STT, SAYING
 }
 
 
 class MyService : Service(), TextToSpeech.OnInitListener {
+
     companion object {
-        const val ACCESS_KEY = "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
-        const val KEYWORD_PATH = "volvo_en_android_v2_2_0.ppn"
+        const val ACCESS_KEY =
+            "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
         const val CHANNEL_ID = "VoiceAssistanceServiceChannel"
+        val KEYWORD_PATHS = arrayOf(
+            "volvo_en_android_v2_2_0.ppn",
+            "hey-ball-bo_en_android_v2_2_0.ppn",
+            "hey-boll-bo_en_android_v2_2_0.ppn"
+        )
+        val SENSITIVITIES = floatArrayOf(
+            0.9f, 0.9f, 0.9f
+        )
     }
 
     private var porcupineManager: PorcupineManager? = null
@@ -53,12 +61,15 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     private lateinit var classifierHelper: TextClassificationHelper
 
     private val classifierListener = object : TextClassificationHelper.TextResultsListener {
+
         override fun onResult(results: List<Category>) {
             // softmax 최고 확률 결과
             var action = Action.NONE
+
             val maxCategory = results.maxByOrNull {
                 it.score
             }
+
             if (maxCategory != null && maxCategory.score >= 0.7) {
                 // 가장 높은 정확도가 70프로 아래라면 NONE으로 레이블링
                 action = Action.values()[maxCategory.label.toInt()]
@@ -67,6 +78,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             //action 처리
             processResult(action)
         }
+
         override fun onError(error: String) {
 
         }
@@ -79,6 +91,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         initSTT()
         initTTS()
         //initClassifier()
+
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -91,9 +104,8 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         try {
             porcupineManager = PorcupineManager.Builder()
                 .setAccessKey(ACCESS_KEY)
-                //.setKeywordPath(KEYWORD_PATH)
-                .setKeyword(Porcupine.BuiltInKeyword.JARVIS)
-                .setSensitivity(0.9f)
+                .setKeywordPaths(KEYWORD_PATHS)
+                .setSensitivities(SENSITIVITIES)
                 .build(applicationContext) {
                     Log.d("PORCUPINE", "Detection");
                     speakOut("네?")
@@ -193,7 +205,10 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         recognizerIntent.apply {
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 10000);
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                10000
+            );
         }
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
@@ -224,7 +239,9 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 when (error) {
                     SpeechRecognizer.ERROR_AUDIO -> displayError("Error recording audio.")
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> displayError("Insufficient permissions.")
-                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_NETWORK -> displayError("Network Error.")
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_NETWORK -> displayError(
+                        "Network Error."
+                    )
                     SpeechRecognizer.ERROR_NO_MATCH -> {
                         // todo 다시 말해주세요 speech
                         speakOut("다시 말해주세요")
@@ -302,7 +319,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     /** service를 중단하는 함수 (리소스 해제) **/
     private fun stopService() {
-        Log.d("EndService","endService")
+        Log.d("EndService", "endService")
         if (porcupineManager != null) {
             try {
                 porcupineManager?.stop()
