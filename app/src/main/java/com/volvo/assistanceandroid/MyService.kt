@@ -1,6 +1,5 @@
 package com.volvo.assistanceandroid
 
-import ai.picovoice.porcupine.Porcupine
 import ai.picovoice.porcupine.PorcupineException
 import ai.picovoice.porcupine.PorcupineManager
 import android.app.NotificationChannel
@@ -47,7 +46,6 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             0.9f, 0.9f, 0.9f
         )
     }
-
     private var porcupineManager: PorcupineManager? = null
     private val notificationId = 1234
     private var currentState: AppState = AppState.STOPPED
@@ -114,7 +112,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     Log.d("PORCUPINE", "Detection");
                     speakOut("yes?")
                     currentState = AppState.STT
-                    changeState()
+                    changeStateUi()
                     porcupineManager?.stop();
                     speechRecognizer.startListening(recognizerIntent)
                 }
@@ -147,7 +145,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             bt = it.findViewById<View>(R.id.bt) as ImageButton
             wm.addView(it, params)
         }
-        changeState()
+        changeStateUi()
     }
 
     /** 텍스트 분류를 위한 Helper Class 를 초기화 하는 함수 **/
@@ -158,7 +156,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         )
     }
 
-    private fun changeState() {
+    private fun changeStateUi() {
         when (currentState) {
             AppState.STT -> {
                 bt.setImageResource(R.drawable.img_volvo_logo)
@@ -222,7 +220,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
             override fun onBeginningOfSpeech() {
                 currentState = AppState.SAYING
-                changeState()
+                changeStateUi()
             }
 
             override fun onRmsChanged(rmsdB: Float) {
@@ -236,7 +234,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             override fun onEndOfSpeech() {
                 Log.d("SpeechToTextService", "음성 인식 종료")
                 currentState = AppState.STT
-                changeState()
+                changeStateUi()
             }
 
             override fun onError(error: Int) {
@@ -259,8 +257,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> displayError("No speech input.")
                     else -> displayError("Something wrong occurred.")
                 }
-                speakOut("error occured")
-                playback(2000)
+                playback(1000)
             }
 
 
@@ -274,7 +271,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     classifierHelper.classify(speechText)
                 }
                 // 다시 WakeWord 상태로
-                playback(3000)
+                playback(2000)
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -308,7 +305,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         Handler(Looper.getMainLooper()).postDelayed({
             if (currentState == AppState.WAKEWORD) {
                 porcupineManager?.start()
-                changeState()
+                changeStateUi()
             }
         }, milliSeconds.toLong())
     }
