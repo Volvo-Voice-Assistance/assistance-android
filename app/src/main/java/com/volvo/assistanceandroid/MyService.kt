@@ -80,8 +80,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             //action 처리
             Log.d("SpeechToTextService", "$action")
 
-            speakOut(action.answer)
-            //processResult(action)
+            processResult(action)
         }
 
         override fun onError(error: String) {
