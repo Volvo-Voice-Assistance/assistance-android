@@ -4,15 +4,14 @@
     android:layout_height="match_parent"
     android:background="@android:color/transparent">
 
-
-
     <ImageButton
-        android:paddingBottom="100dp"
+        android:id="@+id/bt"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/bt"
-        android:src="@drawable/img_volvo_logo"
+        android:layout_marginTop="12dp"
         android:background="@android:color/transparent"
-        android:layout_marginTop="12dp" />
+        android:paddingBottom="100dp"
+        android:src="@drawable/img_volvo_logo" />
 
 </RelativeLayout>
+

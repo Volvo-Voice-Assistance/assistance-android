@@ -25,5 +25,5 @@ enum class Action(val label: Int, val answer: String) {
     MEDIA_MUSIC_OFF(21, "Yes, I'll turn off the music"),
     MEDIA_RADIO_ON(22, "Yes, I'll turn on the radio."),
     MEDIA_RADIO_OFF(23, "Yes, I'll turn off the radio."),
-    NONE(100, "Sorry, I don't understand well. could you say it again?"),
+    NONE(100, "Sorry, I don't understand well. could you say it again?")
 }
