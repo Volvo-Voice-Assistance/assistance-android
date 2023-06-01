@@ -79,10 +79,22 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             Log.d("SpeechToTextService", "$action")
 
             processResult(action)
+
+            if(action != Action.NONE) {
+                sendRequest(action)
+            }
         }
 
         override fun onError(error: String) {
 
+        }
+
+        fun sendRequest(action: Action){
+            var i = Intent()
+            i.setAction(Constants.ACTION_VOICE_ASSISTANT_REQUEST)
+            i.putExtra(Constants.REQUEST, action.label)
+            applicationContext.sendBroadcast(i)
+            Log.d("DBG", "[sendRequest] Action.label : " + action.label)
         }
     }
 
