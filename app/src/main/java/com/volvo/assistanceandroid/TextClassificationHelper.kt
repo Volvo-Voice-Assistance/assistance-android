@@ -1,6 +1,9 @@
 package com.volvo.assistanceandroid
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.text.nlclassifier.BertNLClassifier
@@ -42,12 +45,14 @@ class TextClassificationHelper(
 
     /** 텍스트를 분류하는 함수 **/
     fun classify(text: String) {
-        executor = ScheduledThreadPoolExecutor(1)
+        CoroutineScope(Dispatchers.IO).launch {
+            executor = ScheduledThreadPoolExecutor(1)
 
-        executor.execute {
-            // Use the appropriate classifier based on the selected model
-            val results: List<Category> = bertClassifier.classify(text)
-            listener.onResult(results)
+            executor.execute {
+                // Use the appropriate classifier based on the selected model
+                val results: List<Category> = bertClassifier.classify(text)
+                listener.onResult(results)
+            }
         }
     }
 

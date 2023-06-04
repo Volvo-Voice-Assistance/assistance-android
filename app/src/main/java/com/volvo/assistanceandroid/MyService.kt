@@ -10,6 +10,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.media.AudioManager
+import android.os.Binder
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -18,10 +19,16 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.view.*
 import android.widget.ImageButton
+import android.widget.ImageView
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.tensorflow.lite.support.label.Category
 import java.util.*
 
@@ -34,8 +41,7 @@ enum class AppState {
 class MyService : Service(), TextToSpeech.OnInitListener {
 
     companion object {
-        const val ACCESS_KEY =
-            "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
+        const val ACCESS_KEY = "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
         const val CHANNEL_ID = "VoiceAssistanceServiceChannel"
         val KEYWORD_PATHS = arrayOf(
             "volvo_en_android_v2_2_0.ppn",
@@ -43,9 +49,10 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             "hey-boll-bo_en_android_v2_2_0.ppn"
         )
         val SENSITIVITIES = floatArrayOf(
-            0.9f, 0.9f, 0.9f
+            0.7f, 0.7f, 0.7f
         )
     }
+
     private var porcupineManager: PorcupineManager? = null
     private val notificationId = 1234
     private var currentState: AppState = AppState.STOPPED
@@ -55,7 +62,6 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     private lateinit var speechRecognizer: SpeechRecognizer // SpeechRecognizer 객체를 선언
     private lateinit var tts: TextToSpeech
     private lateinit var recognizerIntent: Intent
-    private lateinit var audioManager: AudioManager
     private lateinit var classifierHelper: TextClassificationHelper
 
     private val classifierListener = object : TextClassificationHelper.TextResultsListener {
@@ -77,13 +83,20 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
             //action 처리
             Log.d("SpeechToTextService", "$action")
-
             processResult(action)
         }
 
         override fun onError(error: String) {
 
         }
+    }
+
+    private fun sendRequest(action: Action) {
+        val i = Intent()
+        i.action = Constants.ACTION_VOICE_ASSISTANT_REQUEST
+        i.putExtra(Constants.REQUEST, action.label)
+        applicationContext.sendBroadcast(i)
+        Log.d("DBG", "[sendRequest] Action.label : " + action.label)
     }
 
     override fun onCreate() {
@@ -93,12 +106,13 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         initSTT()
         initTTS()
         initClassifier()
-
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createNotification()
-        playback(0)
+        CoroutineScope(Dispatchers.Main).launch {
+            playback(0)
+        }
         return START_STICKY // 서비스가 강제 종료되면 재시작하도록 설정
     }
 
@@ -109,12 +123,19 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 .setKeywordPaths(KEYWORD_PATHS)
                 .setSensitivities(SENSITIVITIES)
                 .build(applicationContext) {
-                    Log.d("PORCUPINE", "Detection");
-                    speakOut("yes?")
-                    currentState = AppState.STT
-                    changeStateUi()
-                    porcupineManager?.stop();
-                    speechRecognizer.startListening(recognizerIntent)
+                    Log.d("PORCUPINE", "Detection")
+                    if (!tts.isSpeaking) {
+                        speakOut("yes?")
+                        try {
+                            porcupineManager?.stop()
+                        } catch (e: PorcupineException) {
+                            displayError("Failed to stop Porcupine.")
+                        }
+                        CoroutineScope(Dispatchers.Main).launch {
+                            changeStateUi(AppState.STT)
+                            speechRecognizer.startListening(recognizerIntent)
+                        }
+                    }
                 }
         } catch (e: PorcupineException) {
             Log.e("PORCUPINE_SERVICE", e.toString())
@@ -123,7 +144,11 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     /** TODO 텍스트 의도 분석 후 이후 작업 처라**/
     private fun processResult(action: Action) {
+        if (action != Action.NONE) sendRequest(action)
         speakOut(action.answer)
+        CoroutineScope(Dispatchers.Main).launch {
+            playback(0)
+        }
     }
 
 
@@ -135,8 +160,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             400,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.CENTER or Gravity.BOTTOM
@@ -145,7 +169,9 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             bt = it.findViewById<View>(R.id.bt) as ImageButton
             wm.addView(it, params)
         }
-        changeStateUi()
+        CoroutineScope(Dispatchers.Main).launch {
+            changeStateUi(AppState.WAKEWORD)
+        }
     }
 
     /** 텍스트 분류를 위한 Helper Class 를 초기화 하는 함수 **/
@@ -156,7 +182,8 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         )
     }
 
-    private fun changeStateUi() {
+    private fun changeStateUi(appState: AppState) {
+        currentState = appState
         when (currentState) {
             AppState.STT -> {
                 bt.setImageResource(R.drawable.img_volvo_logo)
@@ -178,13 +205,13 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         builder.setSmallIcon(R.mipmap.ic_launcher)
         builder.setContentTitle("VoiceAssistance Service")
         builder.setContentText("서비스 실행 중")
+        builder.priority = NotificationCompat.PRIORITY_MAX
         builder.color = Color.RED
         val notificationIntent = Intent(this, MainActivity::class.java)
         notificationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent =
             PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
         builder.setContentIntent(pendingIntent) // 알림 클릭 시 이동
-
         // 알림 표시
         val notificationManager = this.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(
@@ -209,9 +236,10 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
             putExtra(
                 RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
-                10000
-            );
+                60000
+            )
         }
+
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
@@ -219,12 +247,12 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             }
 
             override fun onBeginningOfSpeech() {
-                currentState = AppState.SAYING
-                changeStateUi()
+                CoroutineScope(Dispatchers.Main).launch {
+                    changeStateUi(AppState.SAYING)
+                }
             }
 
             override fun onRmsChanged(rmsdB: Float) {
-                // 음성의 크기가 변할 때 호출
             }
 
             override fun onBufferReceived(buffer: ByteArray?) {
@@ -233,8 +261,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
             override fun onEndOfSpeech() {
                 Log.d("SpeechToTextService", "음성 인식 종료")
-                currentState = AppState.STT
-                changeStateUi()
+
             }
 
             override fun onError(error: Int) {
@@ -245,19 +272,17 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                         "Network Error."
                     )
                     SpeechRecognizer.ERROR_NO_MATCH -> {
-                        // todo 다시 말해주세요 speech
-                        playback(2000)
-                        return
+                        displayError("No recognition result matched.");
+                        CoroutineScope(Dispatchers.Main).launch {
+                            playback(0)
+                        }
                     }
-                    SpeechRecognizer.ERROR_CLIENT -> {
-                        return
-                    }
+                    SpeechRecognizer.ERROR_CLIENT -> {}
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> displayError("Recognition service is busy.")
                     SpeechRecognizer.ERROR_SERVER -> displayError("Server Error.")
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> displayError("No speech input.")
                     else -> displayError("Something wrong occurred.")
                 }
-                playback(1000)
             }
 
 
@@ -270,8 +295,6 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     // 명령어 분석
                     classifierHelper.classify(speechText)
                 }
-                // 다시 WakeWord 상태로
-                playback(2000)
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -299,15 +322,13 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     }
 
     /** 일정 시간 후에 다시 WAKEWORD 상태로 전환하는 함수**/
-    private fun playback(milliSeconds: Int) {
+    private suspend fun playback(milliSeconds: Int) {
+        Log.d("speech", "playback")
+        porcupineManager?.stop()
         speechRecognizer.stopListening()
-        currentState = AppState.WAKEWORD
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (currentState == AppState.WAKEWORD) {
-                porcupineManager?.start()
-                changeStateUi()
-            }
-        }, milliSeconds.toLong())
+        delay(milliSeconds.toLong())
+        changeStateUi(AppState.WAKEWORD)
+        porcupineManager?.start()
     }
 
     /** error 내용을 출력하는 함수 **/
@@ -339,6 +360,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        Log.d("stopservice", "stopservice")
         stopService()
     }
 
@@ -354,8 +376,8 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         }
     }
 
-    override fun onBind(intent: Intent): IBinder? {
-        return null
+    override fun onBind(intent: Intent): IBinder {
+        return Binder()
     }
 
 }

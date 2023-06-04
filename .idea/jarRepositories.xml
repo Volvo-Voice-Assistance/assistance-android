@@ -26,5 +26,45 @@
       <option name="name" value="Google" />
       <option name="url" value="https://dl.google.com/dl/android/maven2/" />
     </remote-repository>
+    <remote-repository>
+      <option name="id" value="vce-swpf" />
+      <option name="name" value="vce-swpf" />
+      <option name="url" value="https://esw-artifactory.got.volvo.net/vce-swpf" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="vce-gateways" />
+      <option name="name" value="vce-gateways" />
+      <option name="url" value="https://esw-artifactory.got.volvo.net/vce-gateways" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="vce-tools-local" />
+      <option name="name" value="vce-tools-local" />
+      <option name="url" value="https://esw-artifactory.got.volvo.net/vce-tools-local" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="MavenLocal" />
+      <option name="name" value="MavenLocal" />
+      <option name="url" value="file:/$USER_HOME$/.m2/repository/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="vce-dcm" />
+      <option name="name" value="vce-dcm" />
+      <option name="url" value="https://esw-artifactory.got.volvo.net/vce-dcm" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="artifactory-libs-release" />
+      <option name="name" value="artifactory-libs-release" />
+      <option name="url" value="https://esw-artifactory.got.volvo.net/libs-release" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="remote-maven.google.com" />
+      <option name="name" value="remote-maven.google.com" />
+      <option name="url" value="https://esw-artifactory.got.volvo.net/google" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="gradle-plugins" />
+      <option name="name" value="gradle-plugins" />
+      <option name="url" value="https://esw-artifactory.got.volvo.net/gradle-plugins" />
+    </remote-repository>
   </component>
 </project>
