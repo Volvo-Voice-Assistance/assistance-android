@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
 import com.volvo.assistanceandroid.databinding.ActivityMainBinding
 
@@ -50,7 +51,7 @@ class MainActivity : AppCompatActivity() {
     private val activityResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             if (Settings.canDrawOverlays(this)) {
-                startService(Intent(this@MainActivity, MyService::class.java))
+                ContextCompat.startForegroundService(this,Intent(this@MainActivity, MyService::class.java))
             } else {
                 Toast.makeText(this, "권한이 없어 앱을 종료합니다.", Toast.LENGTH_SHORT).show()
                 finish()

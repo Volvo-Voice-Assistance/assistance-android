@@ -10,6 +10,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.media.AudioManager
+import android.os.Binder
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -22,6 +23,7 @@ import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.view.*
 import android.widget.ImageButton
+import android.widget.ImageView
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,8 +41,7 @@ enum class AppState {
 class MyService : Service(), TextToSpeech.OnInitListener {
 
     companion object {
-        const val ACCESS_KEY =
-            "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
+        const val ACCESS_KEY = "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
         const val CHANNEL_ID = "VoiceAssistanceServiceChannel"
         val KEYWORD_PATHS = arrayOf(
             "volvo_en_android_v2_2_0.ppn",
@@ -61,7 +62,6 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     private lateinit var speechRecognizer: SpeechRecognizer // SpeechRecognizer 객체를 선언
     private lateinit var tts: TextToSpeech
     private lateinit var recognizerIntent: Intent
-    private lateinit var audioManager: AudioManager
     private lateinit var classifierHelper: TextClassificationHelper
 
     private val classifierListener = object : TextClassificationHelper.TextResultsListener {
@@ -83,25 +83,20 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
             //action 처리
             Log.d("SpeechToTextService", "$action")
-
             processResult(action)
-
-            if (action != Action.NONE) {
-                sendRequest(action)
-            }
         }
 
         override fun onError(error: String) {
 
         }
+    }
 
-        fun sendRequest(action: Action) {
-            val i = Intent()
-            i.action = Constants.ACTION_VOICE_ASSISTANT_REQUEST
-            i.putExtra(Constants.REQUEST, action.label)
-            applicationContext.sendBroadcast(i)
-            Log.d("DBG", "[sendRequest] Action.label : " + action.label)
-        }
+    private fun sendRequest(action: Action) {
+        val i = Intent()
+        i.action = Constants.ACTION_VOICE_ASSISTANT_REQUEST
+        i.putExtra(Constants.REQUEST, action.label)
+        applicationContext.sendBroadcast(i)
+        Log.d("DBG", "[sendRequest] Action.label : " + action.label)
     }
 
     override fun onCreate() {
@@ -111,7 +106,6 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         initSTT()
         initTTS()
         initClassifier()
-
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -130,15 +124,17 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 .setSensitivities(SENSITIVITIES)
                 .build(applicationContext) {
                     Log.d("PORCUPINE", "Detection")
-                    speakOut("yes?")
-                    try {
-                        porcupineManager?.stop()
-                    } catch (e: PorcupineException) {
-                        displayError("Failed to stop Porcupine.")
-                    }
-                    CoroutineScope(Dispatchers.Main).launch {
-                        changeStateUi(AppState.STT)
-                        speechRecognizer.startListening(recognizerIntent)
+                    if (!tts.isSpeaking) {
+                        speakOut("yes?")
+                        try {
+                            porcupineManager?.stop()
+                        } catch (e: PorcupineException) {
+                            displayError("Failed to stop Porcupine.")
+                        }
+                        CoroutineScope(Dispatchers.Main).launch {
+                            changeStateUi(AppState.STT)
+                            speechRecognizer.startListening(recognizerIntent)
+                        }
                     }
                 }
         } catch (e: PorcupineException) {
@@ -148,6 +144,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     /** TODO 텍스트 의도 분석 후 이후 작업 처라**/
     private fun processResult(action: Action) {
+        if (action != Action.NONE) sendRequest(action)
         speakOut(action.answer)
         CoroutineScope(Dispatchers.Main).launch {
             playback(0)
@@ -208,13 +205,13 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         builder.setSmallIcon(R.mipmap.ic_launcher)
         builder.setContentTitle("VoiceAssistance Service")
         builder.setContentText("서비스 실행 중")
+        builder.priority = NotificationCompat.PRIORITY_MAX
         builder.color = Color.RED
         val notificationIntent = Intent(this, MainActivity::class.java)
         notificationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent =
             PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
         builder.setContentIntent(pendingIntent) // 알림 클릭 시 이동
-
         // 알림 표시
         val notificationManager = this.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(
@@ -256,7 +253,6 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             }
 
             override fun onRmsChanged(rmsdB: Float) {
-                // 음성의 크기가 변할 때 호출
             }
 
             override fun onBufferReceived(buffer: ByteArray?) {
@@ -272,7 +268,9 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 when (error) {
                     SpeechRecognizer.ERROR_AUDIO -> displayError("Error recording audio.")
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> displayError("Insufficient permissions.")
-                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_NETWORK -> displayError("Network Error.")
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_NETWORK -> displayError(
+                        "Network Error."
+                    )
                     SpeechRecognizer.ERROR_NO_MATCH -> {
                         displayError("No recognition result matched.");
                         CoroutineScope(Dispatchers.Main).launch {
@@ -362,6 +360,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        Log.d("stopservice", "stopservice")
         stopService()
     }
 
@@ -377,8 +376,8 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         }
     }
 
-    override fun onBind(intent: Intent): IBinder? {
-        return null
+    override fun onBind(intent: Intent): IBinder {
+        return Binder()
     }
 
 }
