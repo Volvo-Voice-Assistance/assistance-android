@@ -77,7 +77,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
                 it.score
             }
 
-            Log.d("SpeechToTextService", "${maxCategory?.label}")
 
             if (maxCategory != null && maxCategory.score >= 0.7) {
                 // 가장 높은 정확도가 70프로 아래라면 NONE으로 레이블링
@@ -85,7 +84,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
             }
 
             //action 처리
-            Log.d("SpeechToTextService", "$action")
             processResult(action)
         }
 
@@ -126,7 +124,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
                 .setKeywordPaths(KEYWORD_PATHS)
                 .setSensitivities(SENSITIVITIES)
                 .build(applicationContext) {
-                    Log.d("PORCUPINE", "Detection")
                     if (!tts.isSpeaking) {
                         speakOut("yes?")
                         try {
@@ -245,7 +242,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
-                Log.d("SpeechToTextService", "음성 인식 준비 완료")
             }
 
             override fun onBeginningOfSpeech() {
@@ -262,7 +258,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
             }
 
             override fun onEndOfSpeech() {
-                Log.d("SpeechToTextService", "음성 인식 종료")
 
             }
 
@@ -295,7 +290,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
                     val speechText = matches[0] // 가장 정확도가 높은 결과를 가져옴
-                    Log.d("SpeechToTextService", "음성 인식 결과: $speechText")
                     classifierHelper.classify(speechText)
                 }
             }
@@ -318,7 +312,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
 
     /** 입력받은 Text를 Speech 하는 함수 **/
     private fun speakOut(speakText: String) {
-        Log.d("speech", speakText)
         tts.setPitch(0.8.toFloat())
         tts.setSpeechRate(1.0.toFloat())
         tts.speak(speakText, TextToSpeech.QUEUE_FLUSH, null, "id1")
@@ -342,7 +335,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
 
     /** service를 중단하는 함수 (리소스 해제) **/
     private fun stopService() {
-        Log.d("EndService", "endService")
         cancel()
         try {
             porcupineManager.stop()
@@ -362,7 +354,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d("stopservice", "stopservice")
         stopService()
     }
 
