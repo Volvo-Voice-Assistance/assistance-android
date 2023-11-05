@@ -43,7 +43,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
     TextToSpeech.OnInitListener {
 
     companion object {
-        const val ACCESS_KEY = Constants.ACCESS_KEY
 
         // Picovoice AccessKey
         const val CHANNEL_ID = "VoiceAssistanceServiceChannel"
@@ -123,7 +122,7 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
     private fun initWakeWordDetection() {
         try {
             porcupineManager = PorcupineManager.Builder()
-                .setAccessKey(ACCESS_KEY)
+                .setAccessKey(Constants.ACCESS_KEY)
                 .setKeywordPaths(KEYWORD_PATHS)
                 .setSensitivities(SENSITIVITIES)
                 .build(applicationContext) {
@@ -344,6 +343,7 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
     /** service를 중단하는 함수 (리소스 해제) **/
     private fun stopService() {
         Log.d("EndService", "endService")
+        cancel()
         try {
             porcupineManager.stop()
             porcupineManager.delete()
@@ -363,7 +363,6 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
     override fun onDestroy() {
         super.onDestroy()
         Log.d("stopservice", "stopservice")
-        cancel()
         stopService()
     }
 
