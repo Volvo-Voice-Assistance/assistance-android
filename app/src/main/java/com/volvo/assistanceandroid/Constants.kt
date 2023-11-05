@@ -2,6 +2,10 @@ package com.volvo.assistanceandroid
 
 class Constants {
     companion object{
+
+        const val ACCESS_KEY = BuildConfig.ACCESS_KEY
+
+
         // [23/05/23] [YSI] Define intent name for communication.
         const val ACTION_VOICE_ASSISTANT_REQUEST = "com.volvo.assistanceandroid.request"
         const val ACTION_VOICE_ASSISTANT_RESULT = "com.volvo.assistanceandroid.result"

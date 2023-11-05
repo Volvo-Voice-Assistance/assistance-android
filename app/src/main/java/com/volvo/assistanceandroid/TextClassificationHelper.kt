@@ -4,10 +4,10 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.text.nlclassifier.BertNLClassifier
-import java.util.concurrent.ScheduledThreadPoolExecutor
 
 class TextClassificationHelper(
     private val context: Context,
@@ -19,7 +19,6 @@ class TextClassificationHelper(
     }
 
     private lateinit var bertClassifier: BertNLClassifier
-    private lateinit var executor: ScheduledThreadPoolExecutor
 
 
     init {
@@ -46,15 +45,18 @@ class TextClassificationHelper(
     /** 텍스트를 분류하는 함수 **/
     fun classify(text: String) {
         CoroutineScope(Dispatchers.Default).launch {
-            executor = ScheduledThreadPoolExecutor(1)
-
-            executor.execute {
-                // Use the appropriate classifier based on the selected model
-                val results: List<Category> = bertClassifier.classify(text)
+            // 코루틴 컨텍스트 내에서 분류를 수행합니다.
+            // CPU 집약적인 작업인 경우, Dispatchers.Default를 그대로 사용합니다.
+            val results: List<Category> = withContext(Dispatchers.Default) {
+                bertClassifier.classify(text)
+            }
+            // 메인 스레드로 결과를 전달합니다.
+            withContext(Dispatchers.Main) {
                 listener.onResult(results)
             }
         }
     }
+
 
     interface TextResultsListener {
         fun onError(error: String)

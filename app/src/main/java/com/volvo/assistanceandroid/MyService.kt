@@ -43,8 +43,9 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
     TextToSpeech.OnInitListener {
 
     companion object {
-        const val ACCESS_KEY =
-            "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
+        const val ACCESS_KEY = Constants.ACCESS_KEY
+
+        // Picovoice AccessKey
         const val CHANNEL_ID = "VoiceAssistanceServiceChannel"
         val KEYWORD_PATHS = arrayOf(
             "volvo_en_android_v2_2_0.ppn",
@@ -249,7 +250,7 @@ class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
             }
 
             override fun onBeginningOfSpeech() {
-                launch {  
+                launch {
                     changeStateUi(AppState.SAYING)
                 }
             }
