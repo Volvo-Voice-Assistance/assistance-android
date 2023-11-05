@@ -45,7 +45,7 @@ class TextClassificationHelper(
 
     /** 텍스트를 분류하는 함수 **/
     fun classify(text: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.Default).launch {
             executor = ScheduledThreadPoolExecutor(1)
 
             executor.execute {
