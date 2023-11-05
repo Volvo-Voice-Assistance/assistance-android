@@ -27,6 +27,7 @@ import android.widget.ImageView
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.tensorflow.lite.support.label.Category
@@ -38,10 +39,12 @@ enum class AppState {
 }
 
 
-class MyService : Service(), TextToSpeech.OnInitListener {
+class MyService : Service(), CoroutineScope by CoroutineScope(Dispatchers.Main),
+    TextToSpeech.OnInitListener {
 
     companion object {
-        const val ACCESS_KEY = "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
+        const val ACCESS_KEY =
+            "a12I6AIwSdf15uFkv+2M7993Bv5QUrtUCG0vDzR4G02LpTIB1Quh3g==" // Picovoice AccessKey
         const val CHANNEL_ID = "VoiceAssistanceServiceChannel"
         val KEYWORD_PATHS = arrayOf(
             "volvo_en_android_v2_2_0.ppn",
@@ -110,7 +113,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createNotification()
-        CoroutineScope(Dispatchers.Main).launch {
+        launch {
             playback(0)
         }
         return START_STICKY // 서비스가 강제 종료되면 재시작하도록 설정
@@ -131,7 +134,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                         } catch (e: PorcupineException) {
                             displayError("Failed to stop Porcupine.")
                         }
-                        CoroutineScope(Dispatchers.Main).launch {
+                        launch {
                             changeStateUi(AppState.STT)
                             speechRecognizer.startListening(recognizerIntent)
                         }
@@ -146,7 +149,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     private fun processResult(action: Action) {
         if (action != Action.NONE) sendRequest(action)
         speakOut(action.answer)
-        CoroutineScope(Dispatchers.Main).launch {
+        launch {
             playback(0)
         }
     }
@@ -169,7 +172,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             bt = it.findViewById<View>(R.id.bt) as ImageButton
             wm.addView(it, params)
         }
-        CoroutineScope(Dispatchers.Main).launch {
+        launch {
             changeStateUi(AppState.WAKEWORD)
         }
     }
@@ -189,9 +192,11 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 bt.setImageResource(R.drawable.img_volvo_logo)
                 bt.visibility = View.VISIBLE
             }
+
             AppState.SAYING -> {
                 bt.setImageResource(R.drawable.img_volvoback_logo)
             }
+
             else -> {
                 bt.visibility = View.GONE
             }
@@ -216,9 +221,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         val notificationManager = this.getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(
             NotificationChannel(
-                CHANNEL_ID,
-                "기본 채널",
-                NotificationManager.IMPORTANCE_LOW
+                CHANNEL_ID, "기본 채널", NotificationManager.IMPORTANCE_LOW
             )
         )
         notificationManager.notify(notificationId, builder.build())
@@ -235,8 +238,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
             putExtra(
-                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
-                60000
+                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 60000
             )
         }
 
@@ -247,7 +249,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             }
 
             override fun onBeginningOfSpeech() {
-                CoroutineScope(Dispatchers.Main).launch {
+                launch {  
                     changeStateUi(AppState.SAYING)
                 }
             }
@@ -271,12 +273,14 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_NETWORK -> displayError(
                         "Network Error."
                     )
+
                     SpeechRecognizer.ERROR_NO_MATCH -> {
                         displayError("No recognition result matched.");
-                        CoroutineScope(Dispatchers.Main).launch {
+                        launch {
                             playback(0)
                         }
                     }
+
                     SpeechRecognizer.ERROR_CLIENT -> {}
                     SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> displayError("Recognition service is busy.")
                     SpeechRecognizer.ERROR_SERVER -> displayError("Server Error.")
@@ -292,7 +296,6 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                 if (!matches.isNullOrEmpty()) {
                     val speechText = matches[0] // 가장 정확도가 높은 결과를 가져옴
                     Log.d("SpeechToTextService", "음성 인식 결과: $speechText")
-                    // 명령어 분석
                     classifierHelper.classify(speechText)
                 }
             }
@@ -323,13 +326,13 @@ class MyService : Service(), TextToSpeech.OnInitListener {
 
     /** 일정 시간 후에 다시 WAKEWORD 상태로 전환하는 함수**/
     private suspend fun playback(milliSeconds: Int) {
-        Log.d("speech", "playback")
         porcupineManager.stop()
         speechRecognizer.stopListening()
         delay(milliSeconds.toLong())
         changeStateUi(AppState.WAKEWORD)
         porcupineManager.start()
     }
+
 
     /** error 내용을 출력하는 함수 **/
     private fun displayError(message: String) {
@@ -359,14 +362,14 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     override fun onDestroy() {
         super.onDestroy()
         Log.d("stopservice", "stopservice")
+        cancel()
         stopService()
     }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             val result = tts.setLanguage(Locale.ENGLISH)
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED
-            ) {
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 Log.e("TTS", "This Language is not supported")
             }
         } else {
