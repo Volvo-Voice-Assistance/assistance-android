@@ -53,7 +53,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
         )
     }
 
-    private var porcupineManager: PorcupineManager? = null
+    private lateinit var porcupineManager: PorcupineManager
     private val notificationId = 1234
     private var currentState: AppState = AppState.STOPPED
     private lateinit var bt: ImageButton
@@ -127,7 +127,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
                     if (!tts.isSpeaking) {
                         speakOut("yes?")
                         try {
-                            porcupineManager?.stop()
+                            porcupineManager.stop()
                         } catch (e: PorcupineException) {
                             displayError("Failed to stop Porcupine.")
                         }
@@ -289,7 +289,7 @@ class MyService : Service(), TextToSpeech.OnInitListener {
             override fun onResults(results: Bundle?) {
                 // 음성 인식 결과를 받으면 호출, 결과는 문자열의 배열로 제공, 첫 번째 요소가 가장 정확도가 높은 결과
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                if (matches != null && matches.isNotEmpty()) {
+                if (!matches.isNullOrEmpty()) {
                     val speechText = matches[0] // 가장 정확도가 높은 결과를 가져옴
                     Log.d("SpeechToTextService", "음성 인식 결과: $speechText")
                     // 명령어 분석
@@ -324,11 +324,11 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     /** 일정 시간 후에 다시 WAKEWORD 상태로 전환하는 함수**/
     private suspend fun playback(milliSeconds: Int) {
         Log.d("speech", "playback")
-        porcupineManager?.stop()
+        porcupineManager.stop()
         speechRecognizer.stopListening()
         delay(milliSeconds.toLong())
         changeStateUi(AppState.WAKEWORD)
-        porcupineManager?.start()
+        porcupineManager.start()
     }
 
     /** error 내용을 출력하는 함수 **/
@@ -340,13 +340,11 @@ class MyService : Service(), TextToSpeech.OnInitListener {
     /** service를 중단하는 함수 (리소스 해제) **/
     private fun stopService() {
         Log.d("EndService", "endService")
-        if (porcupineManager != null) {
-            try {
-                porcupineManager?.stop()
-                porcupineManager?.delete()
-            } catch (e: PorcupineException) {
-                displayError("Failed to stop porcupine.")
-            }
+        try {
+            porcupineManager.stop()
+            porcupineManager.delete()
+        } catch (e: PorcupineException) {
+            displayError("Failed to stop porcupine.")
         }
         if (::wm.isInitialized && ::mView.isInitialized) {
             wm.removeView(mView)
